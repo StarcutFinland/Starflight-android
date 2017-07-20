@@ -16,7 +16,7 @@ Remember that Starflight Client uses GCM.
 
 ## Installation
 
-StarFlight is available through JCetner. To install
+StarFlight is available through JCenter. To install
 it, simply add the following line to your build.gradle:
 
 ```Dsl
