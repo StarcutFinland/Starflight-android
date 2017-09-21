@@ -84,13 +84,34 @@ public class StarFlightClient
 	public void register(final Activity activity,
 						 final StarFlightCallback<RegistrationResponse> callback)
 	{
-		register(activity, null, callback);
+		register(activity, callback, null);
+	}
+
+	/**
+	 * Registers for push notifications
+	 * @param callback callback that will be notified of success or failure
+	 */
+	public void register(final Activity activity,
+						 final StarFlightCallback<RegistrationResponse> callback,
+						 final OkHttpClient externalOkHttpClient)
+	{
+		register(activity, null, callback, externalOkHttpClient);
 	}
 
 	/**
 	 * Refreshes the current StarFlight registration if needed. It is advisable to call this method every time your application starts.
 	 */
 	public void refreshRegistration(final Activity activity)
+	{
+		refreshRegistration(activity, null);
+	}
+
+	/**
+	 * Refreshes the current StarFlight registration if needed. It is advisable to call this method every time your application starts.
+	 * @param externalOkHttpClient Most applications should call new OkHttpClient() exactly once.
+	 *                                This will give the option to the user of the library to use its own client.
+	 */
+	public void refreshRegistration(final Activity activity, final OkHttpClient externalOkHttpClient)
 	{
 		if (!isRegistered(activity))
 		{
@@ -103,7 +124,7 @@ public class StarFlightClient
 				Collections.<String>emptyList() :
 				Arrays.asList(registeredTags.split(","));
 		Log.d(TAG, "Registered flags to refresh " + tags);
-		register(activity, tags, null);
+		register(activity, tags, null, externalOkHttpClient);
 	}
 
 	/**
@@ -117,17 +138,43 @@ public class StarFlightClient
 						 final List<String> tags,
 						 final StarFlightCallback<RegistrationResponse> callback)
 	{
+		register(activity, tags, callback, null);
+	}
+
+	/**
+	 * <p>Registers for push notifications with the supplied list of tags.</p>
+	 *
+	 * <p>If a registration already exists, its tags will be replaced with the supplied values.</p>
+	 * @param tags the tags
+	 * @param callback callback that will be notified of success or failure
+	 * @param externalOkHttpClient Most applications should call new OkHttpClient() exactly once.
+	 *                                This will give the option to the user of the library to use its own client.
+	 */
+	public void register(final Activity activity,
+						 final List<String> tags,
+						 final StarFlightCallback<RegistrationResponse> callback,
+						 final OkHttpClient externalOkHttpClient)
+	{
 		if (checkPlayServices(activity))
 		{
+			final OkHttpClient okHttpClient;
+			if (externalOkHttpClient == null) {
+				okHttpClient = new OkHttpClient();
+			}
+			else {
+				okHttpClient = externalOkHttpClient;
+			}
+
+
 			Context context = activity.getApplicationContext();
 			String registrationId = getRegistrationId(context);
 			if (registrationId == null)
 			{
-				getRegistrationIdInBackground(context, tags, callback);
+				getRegistrationIdInBackground(context, tags, callback, okHttpClient);
 			}
 			else
 			{
-				sendRegistrationIdIfNeeded(context, tags, callback);
+				sendRegistrationIdIfNeeded(context, tags, callback, okHttpClient);
 			}
 		}
 	}
@@ -139,7 +186,18 @@ public class StarFlightClient
 	public void unregister(final Activity activity,
 						   final StarFlightCallback<UnregistrationResponse> callback)
 	{
-		unregister(activity, null, callback);
+		unregister(activity, callback, null);
+	}
+
+	/**
+	 * Removes an existing registration
+	 * @param callback callback that will be notified of success or failure
+	 */
+	public void unregister(final Activity activity,
+						   final StarFlightCallback<UnregistrationResponse> callback,
+						   final OkHttpClient externalOkHttpClient)
+	{
+		unregister(activity, null, callback, externalOkHttpClient);
 	}
 
 	/**
@@ -149,6 +207,20 @@ public class StarFlightClient
 	public void unregister(final Activity activity,
 						   final List<String> tags,
 						   final StarFlightCallback<UnregistrationResponse> callback)
+	{
+		unregister(activity, tags, callback, null);
+	}
+
+	/**
+	 * Removes the supplied list of tags from an existing registration
+	 * @param callback callback that will be notified of success or failure
+	 * @param externalOkHttpClient Most applications should call new OkHttpClient() exactly once.
+	 *                                This will give the option to the user of the library to use its own client.
+	 */
+	public void unregister(final Activity activity,
+						   final List<String> tags,
+						   final StarFlightCallback<UnregistrationResponse> callback,
+						   final OkHttpClient externalOkHttpClient)
 	{
 		if (checkPlayServices(activity))
 		{
@@ -162,14 +234,23 @@ public class StarFlightClient
 				return;
 			}
 
-			sendUnregistrationInBackground(context, tags, callback);
+			final OkHttpClient okHttpClient;
+			if (externalOkHttpClient == null) {
+				okHttpClient = new OkHttpClient();
+			}
+			else {
+				okHttpClient = externalOkHttpClient;
+			}
+
+			sendUnregistrationInBackground(context, tags, callback, okHttpClient);
 		}
 	}
 
 	@SuppressWarnings("unchecked")
 	private void sendUnregistrationInBackground(final Context context,
 												final List<String> tags,
-												final StarFlightCallback<UnregistrationResponse> callback)
+												final StarFlightCallback<UnregistrationResponse> callback,
+												final OkHttpClient okHttpClient)
 	{
 		final String registrationId = getRegistrationId(context);
 
@@ -188,7 +269,7 @@ public class StarFlightClient
 
 					try
 					{
-						response = sendUnregistrationToBackend(registrationId, tags);
+						response = sendUnregistrationToBackend(registrationId, tags, okHttpClient);
 						removeTagsFromStorage(context, tags);
 					}
 					catch (IOException e)
@@ -203,7 +284,7 @@ public class StarFlightClient
 
 					try
 					{
-						response = sendUnregistrationToBackend(registrationId, null);
+						response = sendUnregistrationToBackend(registrationId, null, okHttpClient);
 						removeRegistrationFromStorage(context);
 						gcm.unregister();
 					}
@@ -226,7 +307,8 @@ public class StarFlightClient
 	@SuppressWarnings("unchecked")
 	private void sendRegistrationIdIfNeeded(final Context context,
 											final List<String> tags,
-											final StarFlightCallback<RegistrationResponse> callback) {
+											final StarFlightCallback<RegistrationResponse> callback,
+											final OkHttpClient okHttpClient) {
 
 		List<String> notificationTags = new ArrayList<>(tags); // ensuring that the tags variable will not be null
 		Collections.sort(notificationTags);
@@ -255,7 +337,7 @@ public class StarFlightClient
 					RegistrationResponse response = null;
 
 					try {
-						response = sendRegistrationIdToBackend(registrationId, tags);
+						response = sendRegistrationIdToBackend(registrationId, tags, okHttpClient);
 						storeRegistration(context, registrationId, tags, response.getClientUuid());
 					} catch (IOException e) {
 						callOnFailure(callback, "Failed to send registration id to StarFlight: " + e.getMessage(), e);
@@ -330,7 +412,8 @@ public class StarFlightClient
 	@SuppressWarnings("unchecked")
 	private void getRegistrationIdInBackground(final Context context,
 											   final List<String> tags,
-											   final StarFlightCallback<RegistrationResponse> callback)
+											   final StarFlightCallback<RegistrationResponse> callback,
+											   final OkHttpClient okHttpClient)
 	{
 		new AsyncTask<List<String>, Void, Void>()
 		{
@@ -348,7 +431,7 @@ public class StarFlightClient
 						tags = params[0];
 					}
 
-					RegistrationResponse response = sendRegistrationIdToBackend(registrationId, tags);
+					RegistrationResponse response = sendRegistrationIdToBackend(registrationId, tags, okHttpClient);
 					storeRegistration(context, registrationId, tags, response.getClientUuid());
 					callOnSuccess(callback, response);
 				}
@@ -367,9 +450,9 @@ public class StarFlightClient
 	}
 
 	private UnregistrationResponse sendUnregistrationToBackend(final String registrationId,
-															   final List<String> tags) throws IOException
+															   final List<String> tags,
+															   final OkHttpClient okHttpClient) throws IOException
 	{
-		OkHttpClient client = new OkHttpClient();
 		FormBody.Builder bodyBuilder = new FormBody.Builder();
 
 		Map<String, String> nameValuePairs = new HashMap<>();
@@ -393,7 +476,7 @@ public class StarFlightClient
 				.post(bodyBuilder.build())
 				.build();
 
-		Response response = client.newCall(request).execute();
+		Response response = okHttpClient.newCall(request).execute();
 		int code = response.code();
 
 		if (code == RESPONSE_CODE_OK)
@@ -409,9 +492,9 @@ public class StarFlightClient
 	}
 
 	private RegistrationResponse sendRegistrationIdToBackend(final String registrationId,
-															 final List<String> tags) throws IOException, JSONException
+															 final List<String> tags,
+															 final OkHttpClient okHttpClient) throws IOException, JSONException
 	{
-		OkHttpClient client = new OkHttpClient();
 		FormBody.Builder bodyBuilder = new FormBody.Builder();
 
 		Map<String, String> nameValuePairs = new HashMap<>();
@@ -435,7 +518,7 @@ public class StarFlightClient
 				.post(bodyBuilder.build())
 				.build();
 
-		Response response = client.newCall(request).execute();
+		Response response = okHttpClient.newCall(request).execute();
 		int code = response.code();
 		ResponseBody responseBody = response.body();
 
@@ -550,6 +633,19 @@ public class StarFlightClient
 							  final UUID messageUuid,
 							  final StarFlightCallback<MessageOpenedResponse> callback)
 	{
+		messageOpened(context, messageUuid, callback, null);
+	}
+
+	/**
+	 * Records that the message with the supplied UUID was opened by the user
+	 * @param externalOkHttpClient Most applications should call new OkHttpClient() exactly once.
+	 *                                This will give the option to the user of the library to use its own client.
+	 */
+	public void messageOpened(final Context context,
+							  final UUID messageUuid,
+							  final StarFlightCallback<MessageOpenedResponse> callback,
+							  final OkHttpClient externalOkHttpClient)
+	{
 		if (isMessageOpened(context, messageUuid))
 		{
 			callOnSuccess(callback, new MessageOpenedResponse(MessageOpenedResponse.Result.ALREADY_OPENED));
@@ -558,6 +654,14 @@ public class StarFlightClient
 
 		final String registrationId = getRegistrationId(context);
 
+		final OkHttpClient okHttpClient;
+		if (externalOkHttpClient == null) {
+			okHttpClient = new OkHttpClient();
+		}
+		else {
+			okHttpClient = externalOkHttpClient;
+		}
+
 		new AsyncTask<Void, Void, Void>()
 		{
 			@Override
@@ -565,7 +669,6 @@ public class StarFlightClient
 			{
 				try
 				{
-					OkHttpClient client = new OkHttpClient();
 					FormBody.Builder bodyBuilder = new FormBody.Builder();
 
 					Map<String, String> nameValuePairs = new HashMap<>();
@@ -584,7 +687,7 @@ public class StarFlightClient
 							.url(PUSH_SERVER_URL)
 							.post(bodyBuilder.build())
 							.build();
-					Response response = client.newCall(request).execute();
+					Response response = okHttpClient.newCall(request).execute();
 					int code = response.code();
 					ResponseBody responseBody = response.body();
 
