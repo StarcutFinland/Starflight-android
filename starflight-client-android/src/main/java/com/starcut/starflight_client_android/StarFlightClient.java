@@ -12,15 +12,6 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.gcm.GoogleCloudMessaging;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.util.EntityUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -28,8 +19,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+
+import okhttp3.FormBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 public class StarFlightClient
 {
@@ -56,6 +55,8 @@ public class StarFlightClient
 	private static final String PROPERTY_OPENED_MESSAGES = "opened_messages_" + KEY_VERSION;
 
 	private static final Handler CALLBACK_HANDLER = new Handler(Looper.getMainLooper());
+	private static final int RESPONSE_CODE_CREATED = 201;
+	private static final int RESPONSE_CODE_OK = 200;
 
 	private final String senderId;
 	private final String appId;
@@ -96,8 +97,8 @@ public class StarFlightClient
 		final SharedPreferences preferences = getStarFlightPreferences(activity);
 		final String registeredTags = preferences.getString(PROPERTY_REGISTERED_TAGS, null);
 		List<String> tags = registeredTags == null ?
-                Collections.<String>emptyList() :
-                Arrays.asList(registeredTags.split(","));
+				Collections.<String>emptyList() :
+				Arrays.asList(registeredTags.split(","));
 		Log.d("NOTIF", "Registered flags to refresh " + tags);
 		register(activity, tags, null);
 	}
@@ -113,7 +114,7 @@ public class StarFlightClient
 	{
 		if (checkPlayServices(activity))
 		{
-            Context context = activity.getApplicationContext();
+			Context context = activity.getApplicationContext();
 			String registrationId = getRegistrationId(context);
 			if (registrationId == null)
 			{
@@ -131,10 +132,10 @@ public class StarFlightClient
 	 * @param activity
 	 * @param callback callback that will be notified of success or failure
 	 */
-    public void unregister(Activity activity, StarFlightCallback<UnregistrationResponse> callback)
-    {
-        unregister(activity, null, callback);
-    }
+	public void unregister(Activity activity, StarFlightCallback<UnregistrationResponse> callback)
+	{
+		unregister(activity, null, callback);
+	}
 
 	/**
 	 * Removes the supplied list of tags from an existing registration
@@ -146,12 +147,12 @@ public class StarFlightClient
 	{
 		if (checkPlayServices(activity))
 		{
-            Context context = activity.getApplicationContext();
+			Context context = activity.getApplicationContext();
 			String registrationId = getRegistrationId(context);
 
 			if (registrationId == null)
 			{
-                UnregistrationResponse response = new UnregistrationResponse(UnregistrationResponse.Result.NOT_REGISTERED);
+				UnregistrationResponse response = new UnregistrationResponse(UnregistrationResponse.Result.NOT_REGISTERED);
 				callOnSuccess(callback, response);
 				return;
 			}
@@ -165,28 +166,28 @@ public class StarFlightClient
 	{
 		final String registrationId = getRegistrationId(context);
 
-        new AsyncTask<List<String>, Void, Void>()
+		new AsyncTask<List<String>, Void, Void>()
 		{
 			@Override
 			protected Void doInBackground(List<String> ... params)
 			{
 				List<String> tags = params[0];
-                UnregistrationResponse response = null;
+				UnregistrationResponse response = null;
 
 				if (tags != null && tags.size() > 0)
 				{
 					// only unregister the specified tags
 					// Unregister tags from server
 
-                    try
-                    {
-                        response = sendUnregistrationToBackend(registrationId, tags);
-                        removeTagsFromStorage(context, tags);
-                    }
-                    catch (IOException e)
-                    {
-                        callOnFailure(callback, "Unregistration failed: " + e.getMessage(), e);
-                    }
+					try
+					{
+						response = sendUnregistrationToBackend(registrationId, tags);
+						removeTagsFromStorage(context, tags);
+					}
+					catch (IOException e)
+					{
+						callOnFailure(callback, "Unregistration failed: " + e.getMessage(), e);
+					}
 				}
 				else
 				{
@@ -195,9 +196,9 @@ public class StarFlightClient
 
 					try
 					{
-                        response = sendUnregistrationToBackend(registrationId, null);
-                        removeRegistrationFromStorage(context);
-                        gcm.unregister();
+						response = sendUnregistrationToBackend(registrationId, null);
+						removeRegistrationFromStorage(context);
+						gcm.unregister();
 					}
 					catch (IOException ex)
 					{
@@ -205,12 +206,12 @@ public class StarFlightClient
 					}
 				}
 
-                if (response != null)
-                {
+				if (response != null)
+				{
 					callOnSuccess(callback, response);
-                }
+				}
 
-                return null;
+				return null;
 			}
 		}.execute(tags);
 	}
@@ -258,28 +259,28 @@ public class StarFlightClient
 						tags = params[0];
 					}
 
-                    RegistrationResponse response = null;
+					RegistrationResponse response = null;
 
-                    try
-                    {
-                        response = sendRegistrationIdToBackend(registrationId, tags);
+					try
+					{
+						response = sendRegistrationIdToBackend(registrationId, tags);
 						storeRegistration(context, registrationId, tags, response.getClientUuid());
-                    }
+					}
 					catch (IOException e)
-                    {
+					{
 						callOnFailure(callback, "Failed to send registration id to StarFlight: " + e.getMessage(), e);
-                    }
-                    catch (JSONException e)
-                    {
+					}
+					catch (JSONException e)
+					{
 						callOnFailure(callback, "Failed to parse server response: " + e.getMessage(), e);
-                    }
+					}
 
-                    if (response != null)
-                    {
+					if (response != null)
+					{
 						callOnSuccess(callback, response);
-                    }
+					}
 
-                    return null;
+					return null;
 				}
 			}.execute(tags, null, null);
 		}
@@ -361,7 +362,7 @@ public class StarFlightClient
 						tags = params[0];
 					}
 
-                    RegistrationResponse response = sendRegistrationIdToBackend(registrationId, tags);
+					RegistrationResponse response = sendRegistrationIdToBackend(registrationId, tags);
 					storeRegistration(context, registrationId, tags, response.getClientUuid());
 					callOnSuccess(callback, response);
 				}
@@ -369,93 +370,109 @@ public class StarFlightClient
 				{
 					callOnFailure(callback, "Registration failed: " + ex.getMessage(), ex);
 				}
-                catch (JSONException ex)
-                {
+				catch (JSONException ex)
+				{
 					callOnFailure(callback, "Failed to parse registration response: " + ex.getMessage(), ex);
-                }
+				}
 
-                return null;
+				return null;
 			}
 		}.execute(tags, null, null);
 	}
 
 	private UnregistrationResponse sendUnregistrationToBackend(String registrationId, List<String> tags) throws IOException
 	{
-		HttpClient client = new DefaultHttpClient();
-		HttpPost post = new HttpPost(PUSH_SERVER_URL);
+		OkHttpClient client = new OkHttpClient();
+		FormBody.Builder bodyBuilder = new FormBody.Builder();
 
-        List<NameValuePair> nameValuePairs = new ArrayList<>();
-        nameValuePairs.add(new BasicNameValuePair("action", "unregister"));
-        nameValuePairs.add(new BasicNameValuePair("appId", appId));
-        nameValuePairs.add(new BasicNameValuePair("clientSecret", clientSecret));
-        nameValuePairs.add(new BasicNameValuePair("type", "android"));
-        nameValuePairs.add(new BasicNameValuePair("token", registrationId));
+		Map<String, String> nameValuePairs = new HashMap<>();
+		nameValuePairs.put("action", "unregister");
+		nameValuePairs.put("appId", appId);
+		nameValuePairs.put("clientSecret", clientSecret);
+		nameValuePairs.put("type", "android");
+		nameValuePairs.put("token", registrationId);
 
-        if (tags != null && tags.size() > 0)
-        {
-            nameValuePairs.add(new BasicNameValuePair("tags", join(tags, ",")));
-        }
+		if (tags != null && tags.size() > 0)
+		{
+			nameValuePairs.put("tags", join(tags, ","));
+		}
 
-        post.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+		for (Map.Entry<String, String> entry : nameValuePairs.entrySet()) {
+			bodyBuilder.add(entry.getKey(), entry.getValue());
+		}
 
-        HttpResponse response = client.execute(post);
-        int code = response.getStatusLine().getStatusCode();
+		Request request = new Request.Builder()
+				.url(PUSH_SERVER_URL)
+				.post(bodyBuilder.build())
+				.build();
 
-        if (code == HttpStatus.SC_OK)
-        {
-            Log.i(LOG_TAG, "Unregistration successful");
-        }
-        else
-        {
-            throw new IOException("Unexpected HTTP response code: " + code);
-        }
+		Response response = client.newCall(request).execute();
+		int code = response.code();
+
+		if (code == RESPONSE_CODE_OK)
+		{
+			Log.i(LOG_TAG, "Unregistration successful");
+		}
+		else
+		{
+			throw new IOException("Unexpected HTTP response code: " + code);
+		}
 
 		return new UnregistrationResponse(UnregistrationResponse.Result.OK);
 	}
 
 	private RegistrationResponse sendRegistrationIdToBackend(String registrationId, List<String> tags) throws IOException, JSONException
 	{
-		HttpClient client = new DefaultHttpClient();
-		HttpPost post = new HttpPost(PUSH_SERVER_URL);
+		OkHttpClient client = new OkHttpClient();
+		FormBody.Builder bodyBuilder = new FormBody.Builder();
 
-        List<NameValuePair> nameValuePairs = new ArrayList<>();
-        nameValuePairs.add(new BasicNameValuePair("action", "register"));
-        nameValuePairs.add(new BasicNameValuePair("appId", appId));
-        nameValuePairs.add(new BasicNameValuePair("clientSecret", clientSecret));
-        nameValuePairs.add(new BasicNameValuePair("type", "android"));
-        nameValuePairs.add(new BasicNameValuePair("token", registrationId));
+		Map<String, String> nameValuePairs = new HashMap<>();
+		nameValuePairs.put("action", "register");
+		nameValuePairs.put("appId", appId);
+		nameValuePairs.put("clientSecret", clientSecret);
+		nameValuePairs.put("type", "android");
+		nameValuePairs.put("token", registrationId);
 
-        if (tags != null && tags.size() > 0)
-        {
-            nameValuePairs.add(new BasicNameValuePair("tags", join(tags, ",")));
-        }
+		if (tags != null && tags.size() > 0)
+		{
+			nameValuePairs.put("tags", join(tags, ","));
+		}
 
-        post.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+		for (Map.Entry<String, String> entry : nameValuePairs.entrySet()) {
+			bodyBuilder.add(entry.getKey(), entry.getValue());
+		}
 
-        HttpResponse response = client.execute(post);
-        int code = response.getStatusLine().getStatusCode();
-        final RegistrationResponse.Result result;
-		String responseText = EntityUtils.toString(response.getEntity());
+		Request request = new Request.Builder()
+				.url(PUSH_SERVER_URL)
+				.post(bodyBuilder.build())
+				.build();
 
-        if (code == HttpStatus.SC_CREATED)
-        {
-            result = RegistrationResponse.Result.REGISTERED;
-            Log.i(LOG_TAG, "Registered push client");
-        }
-        else if (code == HttpStatus.SC_OK)
-        {
-            result = RegistrationResponse.Result.REFRESHED;
-            Log.i(LOG_TAG, "Push client registration refreshed");
-        }
-        else
-        {
-            throw new IOException("Unexpected HTTP response code: " + code + ", response text: " + responseText);
-        }
+		Response response = client.newCall(request).execute();
+		int code = response.code();
+		ResponseBody responseBody = response.body();
 
-        JSONObject json = new JSONObject(responseText);
+		final RegistrationResponse.Result result;
+		if (code == RESPONSE_CODE_CREATED) {
+			result = RegistrationResponse.Result.REGISTERED;
+			Log.i(LOG_TAG, "Registered push client");
+		}
+		else if (code == RESPONSE_CODE_OK) {
+			result = RegistrationResponse.Result.REFRESHED;
+			Log.i(LOG_TAG, "Push client registration refreshed");
+		}
+		else {
+			final String responseStr = responseBody == null ? "" : responseBody.string();
+			throw new IOException("Unexpected HTTP response code: " + code + ", response text: " + responseStr);
+		}
+
+		if (responseBody == null) {
+			throw new IOException("Empty response body!");
+		}
+
+		JSONObject json = new JSONObject(responseBody.string());
 		UUID clientUuid = UUID.fromString(json.getString("clientUuid"));
 
-        return new RegistrationResponse(clientUuid, result);
+		return new RegistrationResponse(clientUuid, result);
 	}
 
 	private void storeRegistration(Context context, String registrationId, List<String> tags, UUID clientUuid)
@@ -464,7 +481,7 @@ public class StarFlightClient
 		Log.i(LOG_TAG, "Saving GCM registration id " + registrationId);
 		SharedPreferences.Editor editor = prefs.edit();
 		editor.putString(PROPERTY_REGISTRATION_ID, registrationId);
-        editor.putString(PROPERTY_LAST_SENT_REG_ID, registrationId);
+		editor.putString(PROPERTY_LAST_SENT_REG_ID, registrationId);
 		editor.putLong(PROPERTY_LAST_REGISTRATION_TIME, System.currentTimeMillis());
 		editor.putString(PROPERTY_REGISTERED_TAGS, join(tags, ","));
 		editor.putString(PROPERTY_CLIENT_UUID, clientUuid.toString());
@@ -555,24 +572,32 @@ public class StarFlightClient
 			{
 				try
 				{
-					HttpClient client = new DefaultHttpClient();
-					HttpPost post = new HttpPost(PUSH_SERVER_URL);
+					OkHttpClient client = new OkHttpClient();
+					FormBody.Builder bodyBuilder = new FormBody.Builder();
 
-					List<NameValuePair> nameValuePairs = new ArrayList<>();
-					nameValuePairs.add(new BasicNameValuePair("action", "message_opened"));
-					nameValuePairs.add(new BasicNameValuePair("appId", appId));
-					nameValuePairs.add(new BasicNameValuePair("clientSecret", clientSecret));
-					nameValuePairs.add(new BasicNameValuePair("type", "android"));
-					nameValuePairs.add(new BasicNameValuePair("token", registrationId));
-					nameValuePairs.add(new BasicNameValuePair("uuid", messageUuid.toString()));
-					post.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+					Map<String, String> nameValuePairs = new HashMap<>();
+					nameValuePairs.put("action", "message_opened");
+					nameValuePairs.put("appId", appId);
+					nameValuePairs.put("clientSecret", clientSecret);
+					nameValuePairs.put("type", "android");
+					nameValuePairs.put("token", registrationId);
+					nameValuePairs.put("uuid", messageUuid.toString());
 
-					HttpResponse response = client.execute(post);
-					int code = response.getStatusLine().getStatusCode();
+					for (Map.Entry<String, String> entry : nameValuePairs.entrySet()) {
+						bodyBuilder.add(entry.getKey(), entry.getValue());
+					}
 
-					if (code != HttpStatus.SC_OK)
-					{
-						throw new IOException("Unexpected HTTP response code: " + code + ", response text: " + EntityUtils.toString(response.getEntity()));
+					Request request = new Request.Builder()
+							.url(PUSH_SERVER_URL)
+							.post(bodyBuilder.build())
+							.build();
+					Response response = client.newCall(request).execute();
+					int code = response.code();
+					ResponseBody responseBody = response.body();
+
+					if (code != RESPONSE_CODE_OK) {
+						final String responseStr = responseBody == null ? "" : responseBody.string();
+						throw new IOException("Unexpected HTTP response code: " + code + ", response text: " + responseStr);
 					}
 
 					storeMessageOpened(context, messageUuid);

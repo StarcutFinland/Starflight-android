@@ -28,7 +28,6 @@ ext {
 android {
     compileSdkVersion 25
     buildToolsVersion "25.0.3"
-    useLibrary 'org.apache.http.legacy' //Needed for StarflightClient HTTP requests
 
     defaultConfig {
         minSdkVersion 16
@@ -47,7 +46,9 @@ android {
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     compile 'com.android.support:appcompat-v7:25.3.1'
-    compile 'com.google.android.gms:play-services-gcm:11.0.1'
+    compile 'com.google.android.gms:play-services-gcm:11.0.4'
+
+    compile 'com.squareup.okhttp3:okhttp:3.9.0'
 }
 
 apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/installv1.gradle'
