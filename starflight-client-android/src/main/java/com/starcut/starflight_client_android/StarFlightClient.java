@@ -9,7 +9,7 @@ import android.os.Looper;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.gcm.GoogleCloudMessaging;
 
 import org.json.JSONException;
@@ -32,20 +32,24 @@ import okhttp3.ResponseBody;
 
 public class StarFlightClient
 {
-	public static final String TEXT_KEY = "text";
-	public static final String URL_KEY = "url";
-	public static final String SUBJECT_KEY = "subject";
+
+	private static final String TAG = "StarFlightClient";
+
+	static final String TEXT_KEY = "text";
+	static final String URL_KEY = "url";
 
 	private static final String PUSH_SERVER_URL = "https://starflight.starcloud.us/push";
 
 	private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
+	private static final int RESPONSE_CODE_CREATED = 201;
+	private static final int RESPONSE_CODE_OK = 200;
+
 	/**
 	 * How frequently registrations should be refreshed in milliseconds
 	 */
-	private static final long REGISTRATION_REFRESH_INTERVAL = 1000 * 60 * 60 * 24 * 10; // 10 days
+	private static final long REGISTRATION_REFRESH_INTERVAL = 1000L * 60 * 60 * 24 * 10; // 10 days
 
-	private static final String LOG_TAG = "StarFlight Push Client";
 	private static final int KEY_VERSION = 1;
 	private static final String PROPERTY_REGISTRATION_ID = "registration_id_" + KEY_VERSION;
 	private static final String PROPERTY_CLIENT_UUID = "client_uuid_" + KEY_VERSION;
@@ -55,8 +59,6 @@ public class StarFlightClient
 	private static final String PROPERTY_OPENED_MESSAGES = "opened_messages_" + KEY_VERSION;
 
 	private static final Handler CALLBACK_HANDLER = new Handler(Looper.getMainLooper());
-	private static final int RESPONSE_CODE_CREATED = 201;
-	private static final int RESPONSE_CODE_OK = 200;
 
 	private final String senderId;
 	private final String appId;
@@ -68,7 +70,7 @@ public class StarFlightClient
 	 * @param appId the StarFlight app id
 	 * @param clientSecret the StarFlight client secret
 	 */
-	public StarFlightClient(String senderId, String appId, String clientSecret)
+	public StarFlightClient(final String senderId, final String appId, final String clientSecret)
 	{
 		this.senderId = senderId;
 		this.appId = appId;
@@ -79,7 +81,8 @@ public class StarFlightClient
 	 * Registers for push notifications
 	 * @param callback callback that will be notified of success or failure
 	 */
-	public void register(Activity activity, StarFlightCallback<RegistrationResponse> callback)
+	public void register(final Activity activity,
+						 final StarFlightCallback<RegistrationResponse> callback)
 	{
 		register(activity, null, callback);
 	}
@@ -87,7 +90,7 @@ public class StarFlightClient
 	/**
 	 * Refreshes the current StarFlight registration if needed. It is advisable to call this method every time your application starts.
 	 */
-	public void refreshRegistration(Activity activity)
+	public void refreshRegistration(final Activity activity)
 	{
 		if (!isRegistered(activity))
 		{
@@ -99,7 +102,7 @@ public class StarFlightClient
 		List<String> tags = registeredTags == null ?
 				Collections.<String>emptyList() :
 				Arrays.asList(registeredTags.split(","));
-		Log.d("NOTIF", "Registered flags to refresh " + tags);
+		Log.d(TAG, "Registered flags to refresh " + tags);
 		register(activity, tags, null);
 	}
 
@@ -110,7 +113,9 @@ public class StarFlightClient
 	 * @param tags the tags
 	 * @param callback callback that will be notified of success or failure
 	 */
-	public void register(Activity activity, List<String> tags, StarFlightCallback<RegistrationResponse> callback)
+	public void register(final Activity activity,
+						 final List<String> tags,
+						 final StarFlightCallback<RegistrationResponse> callback)
 	{
 		if (checkPlayServices(activity))
 		{
@@ -129,21 +134,21 @@ public class StarFlightClient
 
 	/**
 	 * Removes an existing registration
-	 * @param activity
 	 * @param callback callback that will be notified of success or failure
 	 */
-	public void unregister(Activity activity, StarFlightCallback<UnregistrationResponse> callback)
+	public void unregister(final Activity activity,
+						   final StarFlightCallback<UnregistrationResponse> callback)
 	{
 		unregister(activity, null, callback);
 	}
 
 	/**
 	 * Removes the supplied list of tags from an existing registration
-	 * @param activity
-	 * @param tags
 	 * @param callback callback that will be notified of success or failure
 	 */
-	public void unregister(Activity activity, List<String> tags, StarFlightCallback<UnregistrationResponse> callback)
+	public void unregister(final Activity activity,
+						   final List<String> tags,
+						   final StarFlightCallback<UnregistrationResponse> callback)
 	{
 		if (checkPlayServices(activity))
 		{
@@ -162,7 +167,9 @@ public class StarFlightClient
 	}
 
 	@SuppressWarnings("unchecked")
-	private void sendUnregistrationInBackground(final Context context, List<String> tags, final StarFlightCallback<UnregistrationResponse> callback)
+	private void sendUnregistrationInBackground(final Context context,
+												final List<String> tags,
+												final StarFlightCallback<UnregistrationResponse> callback)
 	{
 		final String registrationId = getRegistrationId(context);
 
@@ -174,7 +181,7 @@ public class StarFlightClient
 				List<String> tags = params[0];
 				UnregistrationResponse response = null;
 
-				if (tags != null && tags.size() > 0)
+				if (tags != null && !tags.isEmpty())
 				{
 					// only unregister the specified tags
 					// Unregister tags from server
@@ -217,78 +224,56 @@ public class StarFlightClient
 	}
 
 	@SuppressWarnings("unchecked")
-	private void sendRegistrationIdIfNeeded(final Context context, List<String> tags, final StarFlightCallback<RegistrationResponse> callback)
-	{
-		tags = new ArrayList<>(tags);
-		Collections.sort(tags);
+	private void sendRegistrationIdIfNeeded(final Context context,
+											final List<String> tags,
+											final StarFlightCallback<RegistrationResponse> callback) {
+
+		List<String> notificationTags = new ArrayList<>(tags); // ensuring that the tags variable will not be null
+		Collections.sort(notificationTags);
 
 		final SharedPreferences preferences = getStarFlightPreferences(context);
 		final String lastSentId = preferences.getString(PROPERTY_LAST_SENT_REG_ID, "");
 		final long lastRegistrationTime = preferences.getLong(PROPERTY_LAST_REGISTRATION_TIME, -1);
-		final String registeredTags = preferences.getString(PROPERTY_REGISTERED_TAGS, null);
+		final String registeredTags = preferences.getString(PROPERTY_REGISTERED_TAGS, "");
 		final String registrationId = getRegistrationId(context);
-		final boolean shouldSend;
 
-		if (lastRegistrationTime == -1 || System.currentTimeMillis() - lastRegistrationTime > REGISTRATION_REFRESH_INTERVAL)
-		{
-			shouldSend = true;
-		}
-		else if (!lastSentId.equals(registrationId))
-		{
-			shouldSend = true;
-		}
-		else if (!registeredTags.equals(join(tags, ",")))
-		{
-			shouldSend = true;
-		}
-		else
-		{
-			shouldSend = false;
-		}
+		final boolean shouldSend =
+				lastRegistrationTime == -1
+				|| System.currentTimeMillis() - lastRegistrationTime > REGISTRATION_REFRESH_INTERVAL
+				|| !lastSentId.equals(registrationId)
+				|| !registeredTags.equals(join(notificationTags, ","));
 
-		if (shouldSend)
-		{
-			new AsyncTask<List<String>, Void, Void>()
-			{
+		if (shouldSend) {
+			new AsyncTask<List<String>, Void, Void>() {
 				@Override
-				protected Void doInBackground(List<String> ... params)
-				{
+				protected Void doInBackground(List<String>... params) {
 					List<String> tags = null;
-					if (params.length > 0)
-					{
+					if (params.length > 0) {
 						tags = params[0];
 					}
 
 					RegistrationResponse response = null;
 
-					try
-					{
+					try {
 						response = sendRegistrationIdToBackend(registrationId, tags);
 						storeRegistration(context, registrationId, tags, response.getClientUuid());
-					}
-					catch (IOException e)
-					{
+					} catch (IOException e) {
 						callOnFailure(callback, "Failed to send registration id to StarFlight: " + e.getMessage(), e);
-					}
-					catch (JSONException e)
-					{
+					} catch (JSONException e) {
 						callOnFailure(callback, "Failed to parse server response: " + e.getMessage(), e);
 					}
 
-					if (response != null)
-					{
+					if (response != null) {
 						callOnSuccess(callback, response);
 					}
 
 					return null;
 				}
-			}.execute(tags, null, null);
-		}
-		else
-		{
+			}.execute(notificationTags, null, null);
+		} else {
 			RegistrationResponse response = new RegistrationResponse(getClientUuid(context), RegistrationResponse.Result.ALREADY_REGISTERED);
 			callOnSuccess(callback, response);
-			Log.i(LOG_TAG, "already registered and refreshing was not necessary");
+			Log.i(TAG, "already registered and refreshing was not necessary");
 		}
 	}
 
@@ -297,18 +282,18 @@ public class StarFlightClient
 	 * doesn't, display a dialog that allows users to download the APK from the
 	 * Google Play Store or enable it in the device's system settings.
 	 */
-	private static boolean checkPlayServices(Activity activity)
+	private static boolean checkPlayServices(final Activity activity)
 	{
-		int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(activity);
+		int resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(activity);
 		if (resultCode != ConnectionResult.SUCCESS)
 		{
-			if (GooglePlayServicesUtil.isUserRecoverableError(resultCode))
+			if (GoogleApiAvailability.getInstance().isUserResolvableError(resultCode))
 			{
-				GooglePlayServicesUtil.getErrorDialog(resultCode, activity, PLAY_SERVICES_RESOLUTION_REQUEST).show();
+				GoogleApiAvailability.getInstance().getErrorDialog(activity, resultCode, PLAY_SERVICES_RESOLUTION_REQUEST).show();
 			}
 			else
 			{
-				Log.e(LOG_TAG, "This device is not supported.");
+				Log.e(TAG, "This device is not supported.");
 			}
 
 			return false;
@@ -320,7 +305,7 @@ public class StarFlightClient
 	 * Gets the currently active GCM registration id
 	 * @return the GCM registration id, or null if none exists
 	 */
-	private String getRegistrationId(Context context)
+	private String getRegistrationId(final Context context)
 	{
 		final SharedPreferences prefs = getStarFlightPreferences(context);
 		return prefs.getString(PROPERTY_REGISTRATION_ID, null);
@@ -328,23 +313,24 @@ public class StarFlightClient
 
 	/**
 	 * Gets the client UUID of the current registration
-	 * @param context
 	 * @return the client UUID, or null if the app is not registered for notifications
 	 */
-	public UUID getClientUuid(Context context)
+	public UUID getClientUuid(final Context context)
 	{
 		final SharedPreferences prefs = getStarFlightPreferences(context);
 		String uuid = prefs.getString(PROPERTY_CLIENT_UUID, null);
 		return (uuid == null ? null : UUID.fromString(uuid));
 	}
 
-	private SharedPreferences getStarFlightPreferences(Context context)
+	private SharedPreferences getStarFlightPreferences(final Context context)
 	{
 		return context.getSharedPreferences(StarFlightClient.class.getSimpleName(), Context.MODE_PRIVATE);
 	}
 
 	@SuppressWarnings("unchecked")
-	private void getRegistrationIdInBackground(final Context context, List<String> tags, final StarFlightCallback<RegistrationResponse> callback)
+	private void getRegistrationIdInBackground(final Context context,
+											   final List<String> tags,
+											   final StarFlightCallback<RegistrationResponse> callback)
 	{
 		new AsyncTask<List<String>, Void, Void>()
 		{
@@ -380,7 +366,8 @@ public class StarFlightClient
 		}.execute(tags, null, null);
 	}
 
-	private UnregistrationResponse sendUnregistrationToBackend(String registrationId, List<String> tags) throws IOException
+	private UnregistrationResponse sendUnregistrationToBackend(final String registrationId,
+															   final List<String> tags) throws IOException
 	{
 		OkHttpClient client = new OkHttpClient();
 		FormBody.Builder bodyBuilder = new FormBody.Builder();
@@ -392,7 +379,7 @@ public class StarFlightClient
 		nameValuePairs.put("type", "android");
 		nameValuePairs.put("token", registrationId);
 
-		if (tags != null && tags.size() > 0)
+		if (tags != null && !tags.isEmpty())
 		{
 			nameValuePairs.put("tags", join(tags, ","));
 		}
@@ -411,7 +398,7 @@ public class StarFlightClient
 
 		if (code == RESPONSE_CODE_OK)
 		{
-			Log.i(LOG_TAG, "Unregistration successful");
+			Log.i(TAG, "Unregistration successful");
 		}
 		else
 		{
@@ -421,7 +408,8 @@ public class StarFlightClient
 		return new UnregistrationResponse(UnregistrationResponse.Result.OK);
 	}
 
-	private RegistrationResponse sendRegistrationIdToBackend(String registrationId, List<String> tags) throws IOException, JSONException
+	private RegistrationResponse sendRegistrationIdToBackend(final String registrationId,
+															 final List<String> tags) throws IOException, JSONException
 	{
 		OkHttpClient client = new OkHttpClient();
 		FormBody.Builder bodyBuilder = new FormBody.Builder();
@@ -433,7 +421,7 @@ public class StarFlightClient
 		nameValuePairs.put("type", "android");
 		nameValuePairs.put("token", registrationId);
 
-		if (tags != null && tags.size() > 0)
+		if (tags != null && !tags.isEmpty())
 		{
 			nameValuePairs.put("tags", join(tags, ","));
 		}
@@ -454,11 +442,11 @@ public class StarFlightClient
 		final RegistrationResponse.Result result;
 		if (code == RESPONSE_CODE_CREATED) {
 			result = RegistrationResponse.Result.REGISTERED;
-			Log.i(LOG_TAG, "Registered push client");
+			Log.i(TAG, "Registered push client");
 		}
 		else if (code == RESPONSE_CODE_OK) {
 			result = RegistrationResponse.Result.REFRESHED;
-			Log.i(LOG_TAG, "Push client registration refreshed");
+			Log.i(TAG, "Push client registration refreshed");
 		}
 		else {
 			final String responseStr = responseBody == null ? "" : responseBody.string();
@@ -475,10 +463,13 @@ public class StarFlightClient
 		return new RegistrationResponse(clientUuid, result);
 	}
 
-	private void storeRegistration(Context context, String registrationId, List<String> tags, UUID clientUuid)
+	private void storeRegistration(final Context context,
+								   final String registrationId,
+								   final List<String> tags,
+								   final UUID clientUuid)
 	{
 		final SharedPreferences prefs = getStarFlightPreferences(context);
-		Log.i(LOG_TAG, "Saving GCM registration id " + registrationId);
+		Log.i(TAG, "Saving GCM registration id " + registrationId);
 		SharedPreferences.Editor editor = prefs.edit();
 		editor.putString(PROPERTY_REGISTRATION_ID, registrationId);
 		editor.putString(PROPERTY_LAST_SENT_REG_ID, registrationId);
@@ -488,7 +479,7 @@ public class StarFlightClient
 		editor.apply();
 	}
 
-	private void removeRegistrationFromStorage(Context context)
+	private void removeRegistrationFromStorage(final Context context)
 	{
 		final SharedPreferences prefs = getStarFlightPreferences(context);
 		SharedPreferences.Editor editor = prefs.edit();
@@ -496,11 +487,11 @@ public class StarFlightClient
 		editor.apply();
 	}
 
-	private void removeTagsFromStorage(Context context, List<String> tags)
+	private void removeTagsFromStorage(final Context context, final List<String> tags)
 	{
 		final SharedPreferences prefs = getStarFlightPreferences(context);
 
-		if (tags != null && tags.size() > 0)
+		if (tags != null && !tags.isEmpty())
 		{
 			List<String> previousTags = new ArrayList<>(Arrays.asList(prefs.getString(PROPERTY_REGISTERED_TAGS, "").split(",")));
 
@@ -522,9 +513,9 @@ public class StarFlightClient
 		}
 	}
 
-	private static String join(List<String> list, String separator)
+	private static String join(final List<String> list, final String separator)
 	{
-		if (list != null && list.size() > 0)
+		if (list != null && !list.isEmpty())
 		{
 			StringBuilder joined = new StringBuilder();
 
@@ -547,7 +538,7 @@ public class StarFlightClient
 	/**
 	 * Tells if this app is currently registered for notifications
 	 */
-	public boolean isRegistered(Context context)
+	public boolean isRegistered(final Context context)
 	{
 		return getRegistrationId(context) != null;
 	}
@@ -555,7 +546,9 @@ public class StarFlightClient
 	/**
 	 * Records that the message with the supplied UUID was opened by the user
 	 */
-	public void messageOpened(final Context context, final UUID messageUuid, final StarFlightCallback<MessageOpenedResponse> callback)
+	public void messageOpened(final Context context,
+							  final UUID messageUuid,
+							  final StarFlightCallback<MessageOpenedResponse> callback)
 	{
 		if (isMessageOpened(context, messageUuid))
 		{
@@ -616,7 +609,7 @@ public class StarFlightClient
 	/**
 	 * Tells if the opening of the message with the supplied UUID has already been recorded
 	 */
-	private boolean isMessageOpened(Context context, UUID messageUuid)
+	private boolean isMessageOpened(final Context context, final UUID messageUuid)
 	{
 		final SharedPreferences prefs = getStarFlightPreferences(context);
 		return Arrays.asList(prefs.getString(PROPERTY_OPENED_MESSAGES, "").split(",")).contains(messageUuid.toString());
@@ -625,7 +618,7 @@ public class StarFlightClient
 	/**
 	 * Stores that the opening of the message with the supplied UUID has been recorded
 	 */
-	private void storeMessageOpened(Context context, UUID messageUuid)
+	private void storeMessageOpened(final Context context, final UUID messageUuid)
 	{
 		final SharedPreferences prefs = getStarFlightPreferences(context);
 		SharedPreferences.Editor editor = prefs.edit();
@@ -633,7 +626,7 @@ public class StarFlightClient
 
 		if (!openedMessageUuids.contains(messageUuid.toString()))
 		{
-			String newValue = join(openedMessageUuids, ",") + (openedMessageUuids.size() == 0 ? "" : ",") + messageUuid;
+			String newValue = join(openedMessageUuids, ",") + (openedMessageUuids.isEmpty() ? "" : ",") + messageUuid;
 			editor.putString(PROPERTY_OPENED_MESSAGES, newValue);
 		}
 
@@ -643,7 +636,8 @@ public class StarFlightClient
 	/**
 	 * Calls the onSuccess method of the supplied callback if the callback is not null
 	 */
-	private static <T extends StarFlightResponse> void callOnSuccess(final StarFlightCallback<T> callback, final T response)
+	private static <T extends StarFlightResponse> void callOnSuccess(final StarFlightCallback<T> callback,
+																	 final T response)
 	{
 		if (callback == null)
 		{
@@ -663,7 +657,9 @@ public class StarFlightClient
 	/**
 	 * Calls the onFailure method of the supplied callback if the callback is not null
 	 */
-	private static void callOnFailure(final StarFlightCallback<? extends StarFlightResponse> callback, final String message, final Throwable t)
+	private static void callOnFailure(final StarFlightCallback<? extends StarFlightResponse> callback,
+									  final String message,
+									  final Throwable throwable)
 	{
 		if (callback == null)
 		{
@@ -675,7 +671,7 @@ public class StarFlightClient
 			@Override
 			public void run()
 			{
-				callback.onFailure(message, t);
+				callback.onFailure(message, throwable);
 			}
 		});
 	}

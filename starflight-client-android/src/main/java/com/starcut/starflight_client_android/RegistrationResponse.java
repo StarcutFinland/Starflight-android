@@ -7,18 +7,18 @@ public class RegistrationResponse implements StarFlightResponse
     private final UUID clientUuid;
     private final Result result;
 
-    RegistrationResponse(UUID clientUuid, Result result)
+    RegistrationResponse(final UUID clientUuid, final Result result)
     {
         this.clientUuid = clientUuid;
         this.result = result;
     }
 
-    public UUID getClientUuid()
+    UUID getClientUuid()
     {
         return clientUuid;
     }
 
-    public enum Result
+    enum Result
     {
         /**
          * Registration was successful
@@ -31,6 +31,6 @@ public class RegistrationResponse implements StarFlightResponse
         /**
          * The device is already registered and the registration does not need refreshing at the moment.
          */
-        ALREADY_REGISTERED;
+        ALREADY_REGISTERED
     }
 }

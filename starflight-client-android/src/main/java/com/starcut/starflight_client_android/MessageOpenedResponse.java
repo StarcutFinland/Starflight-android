@@ -1,10 +1,10 @@
 package com.starcut.starflight_client_android;
 
-public class MessageOpenedResponse implements StarFlightResponse
+class MessageOpenedResponse implements StarFlightResponse
 {
 	private final Result result;
 
-	MessageOpenedResponse(Result result)
+	MessageOpenedResponse(final Result result)
 	{
 		this.result = result;
 	}
@@ -14,7 +14,7 @@ public class MessageOpenedResponse implements StarFlightResponse
 		return result;
 	}
 
-	public static enum Result
+	enum Result
 	{
 		/**
 		 * The message open was recorded successfully
@@ -24,6 +24,6 @@ public class MessageOpenedResponse implements StarFlightResponse
 		/**
 		 * The opening of the message had already been recorded
 		 */
-		ALREADY_OPENED;
+		ALREADY_OPENED
 	}
 }
