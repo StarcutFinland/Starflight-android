@@ -218,7 +218,9 @@ public class StarFlightClient
 	@SuppressWarnings("unchecked")
 	private void sendRegistrationIdIfNeeded(final Context context, List<String> tags, final StarFlightCallback<RegistrationResponse> callback)
 	{
-		tags = new ArrayList<>(tags);
+		if(tags == null){
+			tags = new ArrayList<>();
+		}
 		Collections.sort(tags);
 
 		final SharedPreferences preferences = getStarFlightPreferences(context);
