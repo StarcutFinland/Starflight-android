@@ -219,14 +219,14 @@ public class StarFlightClient
 	private void sendRegistrationIdIfNeeded(final Context context, List<String> tags, final StarFlightCallback<RegistrationResponse> callback)
 	{
 		if(tags == null){
-			tags = new ArrayList<>();
+			tags = Collections.<String>emptyList();
 		}
 		Collections.sort(tags);
 
 		final SharedPreferences preferences = getStarFlightPreferences(context);
 		final String lastSentId = preferences.getString(PROPERTY_LAST_SENT_REG_ID, "");
 		final long lastRegistrationTime = preferences.getLong(PROPERTY_LAST_REGISTRATION_TIME, -1);
-		final String registeredTags = preferences.getString(PROPERTY_REGISTERED_TAGS, null);
+		String registeredTags = preferences.getString(PROPERTY_REGISTERED_TAGS, "");
 		final String registrationId = getRegistrationId(context);
 		final boolean shouldSend;
 
@@ -462,6 +462,9 @@ public class StarFlightClient
 
 	private void storeRegistration(Context context, String registrationId, List<String> tags, UUID clientUuid)
 	{
+		if(tags == null){
+			tags = Collections.<String>emptyList();
+		}
 		final SharedPreferences prefs = getStarFlightPreferences(context);
 		Log.i(LOG_TAG, "Saving GCM registration id " + registrationId);
 		SharedPreferences.Editor editor = prefs.edit();
